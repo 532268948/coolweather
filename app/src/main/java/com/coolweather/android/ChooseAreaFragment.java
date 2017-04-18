@@ -1,9 +1,10 @@
-package com.coolweather.android.util;
+package com.coolweather.android;
 
-import android.app.Fragment;
 import android.app.ProgressDialog;
+import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.Nullable;
+import android.support.v4.app.Fragment;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -12,22 +13,25 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
+import android.support.annotation.Nullable;
 
-import com.coolweather.android.R;
 import com.coolweather.android.db.City;
 import com.coolweather.android.db.Country;
 import com.coolweather.android.db.Province;
+import com.coolweather.android.util.HttpUtil;
+import com.coolweather.android.util.Utility;
 
 import org.litepal.crud.DataSupport;
 
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.List;
 
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Response;
+
 
 /**
  * Created by 53226 on 2017/4/17.
@@ -41,7 +45,7 @@ public class ChooseAreaFragment extends Fragment{
     private TextView titleText;
     private Button backButton;
     private ListView listView;
-    private ArrayAdapter<String> adapter;
+    private ArrayAdapter adapter;
     private List<String> dataList=new ArrayList<>();
     private List<Province> provinceList;
     private List<City> cityList;
@@ -65,7 +69,7 @@ public class ChooseAreaFragment extends Fragment{
     @Override
     public void onActivityCreated(@Nullable Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
-        listView.setOnClickListener(new AdapterView.OnItemClickListener(){
+        listView.setOnItemClickListener(new AdapterView.OnItemClickListener(){
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 if(currentLevel==LEVEL_PROVINCE){
@@ -73,7 +77,7 @@ public class ChooseAreaFragment extends Fragment{
                     queryCities();
                 }else if(currentLevel==LEVEL_CITY){
                     selectedCity=cityList.get(position);
-                    queryCounties();
+                    queryCountries();
                 }
             }
         });
@@ -103,13 +107,13 @@ public class ChooseAreaFragment extends Fragment{
             currentLevel=LEVEL_PROVINCE;
         }else{
             String address="http://guolin.tech/api/china";
-            queryFromSever(address,"province");
+            queryFromServer(address,"province");
         }
     }
     private void queryCities(){
         titleText.setText(selectedProvince.getProvinceName());
         backButton.setVisibility(View.VISIBLE);
-        cityList=DataSupport.where("provinced=?",String.valueOf(selectedProvince.getId())).find(City.class);
+        cityList=DataSupport.where("provinceid=?",String.valueOf(selectedProvince.getId())).find(City.class);
         if(cityList.size()>0){
             dataList.clear();
             for(City city:cityList){
@@ -121,7 +125,7 @@ public class ChooseAreaFragment extends Fragment{
         }else{
             int provinceCode=selectedProvince.getProvinceCode();
             String address="http://guolin.tech/api/china/"+provinceCode;
-            queryFromSever(address,"city");
+            queryFromServer(address,"city");
         }
     }
     private void queryCountries(){
@@ -148,7 +152,13 @@ public class ChooseAreaFragment extends Fragment{
         HttpUtil.sendOkHttpRequest(address, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-
+                getActivity().runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        closeProgressDialog();
+                        Toast.makeText(getContext(),"加载失败",Toast.LENGTH_SHORT).show();
+                    }
+                });
             }
 
             @Override
@@ -156,7 +166,7 @@ public class ChooseAreaFragment extends Fragment{
                 String responseText=response.body().string();
                 boolean result=false;
                 if("province".equals(type)){
-                    result=Utility.handleProvinceResponse(responseText);
+                    result= Utility.handleProvinceResponse(responseText);
                 }else if("city".equals(type)){
                     result=Utility.handleCityResponse(responseText,selectedProvince.getId());
                 }else if("country".equals(type)){
